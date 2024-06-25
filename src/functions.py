@@ -470,6 +470,19 @@ def save_all_positions(parameters, key_file, experimentID, drawn_filename, micro
 
 
 
+def save_all_positions_pruning(parameters, key_file, experimentID, drawn_filename, csv_filename):
+    folder_name = parameters["out_dir"] + 'processed/python_results/'
+    print(csv_filename)
+
+    experiment_df = key_file[key_file["ExperimentID"] == experimentID]
+    tp = 'P' + str(experiment_df["THO Injection Point"].iloc[0]) + '_P' + str(experiment_df["Collection Point"].iloc[0])
+
+    dir_name = folder_name + 'ExperimentID_' + str(experimentID) + '_' + str(tp) + '/'
+
+
+
+
+
 def compute_res(parameters, key_file):
     """ 
     go through all directories in input_dir_list, find all subfolders,
@@ -522,6 +535,18 @@ def compute_res(parameters, key_file):
         if gfpXerg_filename != False:
             save_all_positions(parameters, key_file, experimentID, drawn_filename, gfpXerg_filename, attributes, 'GFP X ERG')
 
+def pruning_analysis(parameters, key_file):
+
+    for experimentID in key_file["ExperimentID"].unique():
+        experiment_df = key_file[key_file["ExperimentID"] == experimentID]
+
+        row_drawn = experiment_df[experiment_df["Drawn"] == 1].iloc[0]
+        row_csv = experiment_df[experiment_df["Pruning_csv"] == 1].iloc[0]
+
+        drawn_filename = parameters["data_dir"] + row_drawn['filename']
+        csv_filename = parameters["data_dir"] + row_csv['filename']
+
+        save_all_positions_pruning(parameters, key_file, experimentID, drawn_filename, csv_filename)
 
 def load_res(parameters, dir_append):
 

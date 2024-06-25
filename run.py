@@ -16,10 +16,15 @@ key_file.to_csv(parameters["out_dir"] + "key_file.csv")
 #=                                            STEP 1: COMPUTE ALL RESULTS                                             =
 #======================================================================================================================
 
-print('Computing results...')
-functions.compute_res(parameters, key_file)
-print('Finished computing.')
+if parameters['pruning_analysis']:
+    print('Computing results for pruning analysis...')
+    functions.pruning_analysis(parameters, key_file)
+    print('Finished computing.')
 
+else:
+    print('Computing results for EC migration analysis...')
+    functions.compute_res(parameters, key_file)
+    print('Finished computing.')
 
 #======================================================================================================================
 #=                                              STEP 2: LOAD RESULTS                                                  =
