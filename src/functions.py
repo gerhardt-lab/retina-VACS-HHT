@@ -33,14 +33,18 @@ sns.set_context('poster')
 sns.set_style('white')
 
 
-def get_parameters():
+def get_parameters(parameter_local_path = '/conf/local/parameters.yml'):
 
-    with open('conf/base/parameters.yml') as file:
+    parameter_base_path = "conf/base/parameters.yml"
+    if not os.path.exists(parameter_base_path):
+        parameter_base_path = "../conf/base/parameters.yml"
+
+    with open(parameter_base_path) as file:
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
         parameter_dict = yaml.load(file, Loader=yaml.FullLoader)
        
-    with open('conf/local/parameters.yml') as file:
+    with open(parameter_local_path) as file:
         parameter_list_local = yaml.load(file, Loader=yaml.FullLoader)
 
         for key in parameter_list_local:
