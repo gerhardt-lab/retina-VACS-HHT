@@ -479,8 +479,216 @@ def save_all_positions_pruning(parameters, key_file, experimentID, drawn_filenam
 
     dir_name = folder_name + 'ExperimentID_' + str(experimentID) + '_' + str(tp) + '/'
 
+    # if directory exists already, don't compute anything
+    if os.path.exists(dir_name):
+        print('Results for experiment ID %s were computed already. Moving to next file.' % (
+        experimentID))
+    else:
+        experiment_df = key_file[key_file["ExperimentID"] == experimentID]
+        print(experiment_df[experiment_df["Drawn"] == 1].iloc[0])
 
+        img_map = np.array(io.imread(drawn_filename)).astype('bool')
+        print(img_map.shape)
+        # problem that accoured with Yi's retinas when they were RGB
+        if img_map.ndim != 3:
+            print('WARNING! Something was wrong with the draw file dimensions...')
+            img_map = np.moveaxis(img_map[:, :, :, 0], 0, -1)
+        # masks that included the sprounting front showed a different dimension
+        if img_map.shape[0] < img_map.shape[2]:
+            print('WARNING! Something was wrong with the draw file dimensions.')
+            print('Old dimensions: ' + str(img_map.shape))
+            img_map = np.moveaxis(img_map[:, :, :], 0, -1)
+            print('New dimensions: ' + str(img_map.shape))
+        if img_map.shape[2] > 4:
+            if np.count_nonzero(img_map[:, :, 4] == True) > (img_map.shape[0] * img_map.shape[1] / 2):
+                img_map[:, :, 4] = np.invert(img_map[:, :, 4])
+            img_map[:, :, 4] = np.invert(scipy.ndimage.morphology.binary_fill_holes(img_map[:, :, 4]))
 
+        # print mask just to make sure everything's alright
+        print('Do these masks look okay?')
+        fig, axes = plt.subplots(1, img_map.shape[2], figsize=(10, 8.2), sharex=True, sharey=True)
+
+        for i in range(img_map.shape[2]):
+            axes[i].imshow(img_map[:, :, i])
+            axes[i].axis('off')
+        plt.close()
+
+        # read csv file
+        csv_file = pd.read_csv(csv_filename)
+        print("CSV file of pruning events:")
+        print(csv_file)
+
+        # im img_map, the underlying structures are saved in the following way:
+        pos_on = 0  # optical nerve
+        pos_artery = 1
+        pos_vein = 2
+        pos_mask = 3
+        pos_sf = 4  # sprouting front
+
+        # define distance map of distances to veins, arteries and optical nerve, and account for pixel size
+        # if um/pixel ratio cannot be extracted from any TIFF, take it from the key file instead
+        # if not ("PhysicalSizeX" in attributes):
+        key_single_exp = key_file[key_file["ExperimentID"] == experimentID]
+        scale_factor = key_single_exp["Pixel size in um"].iloc[0]
+
+        artery_distance = scipy.ndimage.morphology.distance_transform_edt(
+            np.invert(img_map[:, :, pos_artery])) * scale_factor
+        artery_distance_flat = artery_distance.flatten()
+        vein_distance = scipy.ndimage.morphology.distance_transform_edt(
+            np.invert(img_map[:, :, pos_vein])) * scale_factor
+        vein_distance_flat = vein_distance.flatten()
+        optical_distance = scipy.ndimage.morphology.distance_transform_edt(
+            np.invert(img_map[:, :, pos_on])) * scale_factor
+        optical_distance_flat = optical_distance.flatten()
+
+        # define arterial-veinal distance
+        av_distance = vein_distance / (artery_distance + vein_distance)
+        av_distance[np.isnan(av_distance)] = 0.5
+        av_distance_flat = av_distance.flatten()
+
+        # define vectors for binning (edges and midpoints)
+        v_AD = np.linspace(0, 3500, 51)
+        v_AD_mps = (v_AD[1:] + v_AD[:-1]) / 2.
+        v_VD = np.linspace(0, 3500, 51)
+        v_VD_mps = (v_VD[1:] + v_VD[:-1]) / 2.
+        v_R = np.linspace(0, 3500, 51)
+        v_R_mps = (v_R[1:] + v_R[:-1]) / 2.
+        v_AV = np.linspace(0, 1, 31)
+        v_AV_mps = (v_AV[1:] + v_AV[:-1]) / 2.
+
+        # initialize lists of different distances
+        distances_AD = []
+        distances_VD = []
+        distances_R = []
+        distances_AV = []
+
+        x_coords_pruning = list(csv_file["X"]*float(scale_factor))
+        print("X COORDINATES")
+        print(x_coords_pruning)
+        y_coords_pruning = list(csv_file["Y"]*float(scale_factor))
+        print("Y COORDINATES")
+        print(y_coords_pruning)
+
+        # loop through csv file of pruning events to add distances accordingly
+        for event in range(len(x_coords_pruning)):
+            distances_AD.append(artery_distance[int(x_coords_pruning[event]), int(y_coords_pruning[event])])
+            distances_VD.append(vein_distance[int(x_coords_pruning[event]), int(y_coords_pruning[event])])
+            distances_R.append(optical_distance[int(x_coords_pruning[event]), int(y_coords_pruning[event])])
+            distances_AV.append(av_distance[int(x_coords_pruning[event]), int(y_coords_pruning[event])])
+
+        print("AV DISTANCES")
+        print(distances_AV)
+
+        hist_AD = np.histogram(distances_AD, bins=v_AD)
+        mean_AD = np.mean(distances_AD)
+        hist_VD = np.histogram(distances_VD, bins=v_VD)
+        mean_VD = np.mean(distances_VD)
+        hist_R = np.histogram(distances_R, bins=v_R)
+        mean_R = np.mean(distances_R)
+        hist_AV = np.histogram(distances_AV, bins=v_AV)
+        mean_AV = np.mean(distances_AV)
+
+        # save all the results in .npy files in a separate directory
+        os.makedirs(dir_name)
+
+        np.save(dir_name + '/hist_AD', hist_AD)
+        np.save(dir_name + '/hist_VD', hist_VD)
+        np.save(dir_name + '/hist_AV', hist_AV)
+        np.save(dir_name + '/hist_R', hist_R)
+        np.save(dir_name + '/hist_mps_AD', v_AD_mps)
+        np.save(dir_name + '/hist_mps_VD', v_VD_mps)
+        np.save(dir_name + '/hist_mps_AV', v_AV_mps)
+        np.save(dir_name + '/hist_mps_R', v_R_mps)
+        np.save(dir_name + '/mean_AV', mean_AV)
+        np.save(dir_name + '/mean_VD', mean_VD)
+        np.save(dir_name + '/mean_AD', mean_AD)
+        np.save(dir_name + '/mean_R', mean_R)
+
+        np.save(dir_name + '/distances_AD', distances_AD)
+        np.save(dir_name + '/distances_VD', distances_VD)
+        np.save(dir_name + '/distances_AV', distances_AV)
+        np.save(dir_name + '/distances_R', distances_R)
+
+        ret_struct = {'retina_name': dir_name,
+                      'v_AD_mps': v_AD_mps, 'v_VD_mps': v_VD_mps, 'v_AV_mps': v_AV_mps, 'v_R_mps': v_R_mps,
+                      'hist_AD': hist_AD, 'hist_VD': hist_VD, 'hist_AV': hist_AV,
+                      'hist_R': hist_R,
+                      'mean_AD': mean_AD, 'mean_VD': mean_VD, 'mean_AV': mean_AV,
+                      'mean_R': mean_R}
+
+        print("Job done: " + dir_name)
+
+        print("Plotting masks and distance maps to check...")
+        folder = parameters['out_dir'] + "distance_maps/"
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        # plot distance transforms for checking
+        outline_mask = scipy.ndimage.morphology.binary_fill_holes(img_map[:, :, pos_mask])
+        fig, axes = plt.subplots(1, 4, figsize=(20, 5), sharex=True, sharey=True)
+        cmap1 = colors.ListedColormap(['none', 'white'])
+        axes[0].imshow(np.ma.masked_where(outline_mask == 0, optical_distance), cmap=plt.get_cmap("Greys"))
+        # axes[0].imshow(optical_distance, cmap=plt.get_cmap("Greys"))
+        axes[0].axis('off')
+        CS = axes[0].contour(optical_distance, [1000, 1500, 2000], linewidths=2)
+        axes[0].clabel(CS, [1000, 1500, 2000], inline=1, fmt='%1.1f', fontsize=12)
+        axes[0].imshow(img_map[:, :, 0], cmap=cmap1)
+
+        axes[1].imshow(np.ma.masked_where(outline_mask == 0, artery_distance), cmap=plt.get_cmap("Reds_r"))
+        # axes[1].imshow(artery_distance, cmap=plt.get_cmap("Reds_r"))
+        axes[1].axis('off')
+        CS = axes[1].contour(optical_distance, [1000, 1500, 2000], linewidths=2)
+        axes[1].clabel(CS, [1000, 1500, 2000], inline=1, fmt='%1.1f', fontsize=12)
+        axes[1].imshow(img_map[:, :, 1], cmap=cmap1)
+
+        axes[2].imshow(np.ma.masked_where(outline_mask == 0, vein_distance), cmap=plt.get_cmap("Blues_r"))
+        # axes[2].imshow(vein_distance, cmap=plt.get_cmap("Blues_r"))
+        axes[2].axis('off')
+        CS = axes[2].contour(optical_distance, [1000, 1500, 2000], linewidths=2)
+        axes[2].clabel(CS, [1000, 1500, 2000], inline=1, fmt='%1.1f', fontsize=12)
+        axes[2].imshow(img_map[:, :, 2], cmap=cmap1)
+
+        palette = plt.cm.coolwarm
+        palette.set_bad('w', 1.0)
+        axes[3].imshow(np.ma.masked_where(outline_mask == 0, av_distance), interpolation='bilinear', cmap=palette,
+                       norm=colors.Normalize(vmin=0.0, vmax=1.0))
+        # axes[3].imshow(av_distance, interpolation='bilinear', cmap=palette,
+        #              norm=colors.Normalize(vmin=0.0, vmax=1.0))
+        axes[3].axis('off')
+        CS = axes[3].contour(optical_distance, [1000, 1500, 2000], linewidths=2)
+        axes[3].clabel(CS, [1000, 1500, 2000], inline=1, fmt='%1.1f', fontsize=12)
+        axes[3].imshow(img_map[:, :, 1], cmap=cmap1)
+
+        plt.savefig(folder + 'distance_maps_ExpID-' + str(experimentID) + '.png', format="png", bbox_inches="tight",
+                    dpi=150)
+        plt.clf()
+        plt.close('all')
+        del fig, axes
+
+        # plot masks for checking
+        # find center of mass of optic nerve
+        center_on = scipy.ndimage.measurements.center_of_mass(
+            scipy.ndimage.morphology.binary_fill_holes(img_map[:, :, pos_on]))
+        folder = parameters['out_dir'] + "check_masks_dir/"
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        fig, axes = plt.subplots(1, img_map.shape[2], figsize=(10, 8.2), sharex=True, sharey=True)
+
+        for i in range(img_map.shape[2]):
+            circle = plt.Circle((center_on[0], center_on[1]), 1500 / scale_factor, fill=False, linestyle='--')
+            axes[i].imshow(img_map[:, :, i])
+            axes[i].scatter(center_on[0], center_on[1], s=30, marker='+')
+            axes[i].add_patch(circle)
+            axes[i].axis('off')
+        plt.savefig(folder + 'mask_ExpID-' + str(experimentID) + '.png', format="png", bbox_inches="tight", dpi=150)
+        plt.clf()
+        plt.close('all')
+
+        # plot GFP image
+        folder = parameters['out_dir'] + "check_GFP_image_dir/"
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+        return ret_struct
 
 
 def compute_res(parameters, key_file):

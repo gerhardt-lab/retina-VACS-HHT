@@ -4,14 +4,12 @@ data_dir : "/dir/to/data/"
 out_dir : "/dir/to/output/"
 pixel_no_per_retina : 10000
 image_types : ['GFP']
-# decide which experiment shall be loaded for plotting results
-load_conditions :  ['CDH5CreERT2;iSureCre;YesFloxFlox', 'CDH5CreERT2 iSureCre']
-# decide if kde and individual histograms shall be plotted
-plot_kde : False
-plot_individual_hist : False
-plot_kde : False
+load_conditions : ['Cdh5CreERT2;mTmG;Alk1FloxFlox', 'Cdh5CreERT2;mTmG;SMAD4FloxFlox', 'Cdh5CreERT2 mTmG']
+plot_kde : True
 plot_cond_kde : True
-plot_individual_hist : False
+plot_individual_hist : True
 radial_bins : [[0,1200]]
-time_points : ['P3_P7', 'P3_P15'] # time points for plotting histograms and kde plots
+time_points : ['P5_P8', 'P5_P15']
 number_ks_test : 1
+pruning_analysis: False #if True, pruning analysis will be performed (but not EC migration analysis!!)
+  # Make sure out_dir is changed to not overwrite EC migration analysis results. Requires csv files of pruning events.
