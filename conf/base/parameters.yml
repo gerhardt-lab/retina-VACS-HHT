@@ -11,5 +11,5 @@ plot_individual_hist : True
 radial_bins : [[0,1200]]
 time_points : ['P5_P8', 'P5_P15']
 number_ks_test : 1
-pruning_analysis: False #if True, pruning analysis will be performed (but not EC migration analysis!!)
+pruning_analysis: False #NOT YET IMPLEMENTED PROPERLY if True, pruning analysis will be performed (but not EC migration analysis!!)
 # Make sure out_dir is changed to not overwrite EC migration analysis results. Requires csv files of pruning events.
