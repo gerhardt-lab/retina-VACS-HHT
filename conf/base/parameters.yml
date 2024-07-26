@@ -2,6 +2,7 @@
 key_file : "/dir/to/Key.xlsx"
 data_dir : "/dir/to/data/"
 out_dir : "/dir/to/output/"
+experiment_IDs_exclude: []
 pixel_no_per_retina : 10000
 image_types : ['GFP']
 load_conditions : ['Cdh5CreERT2;mTmG;Alk1FloxFlox', 'Cdh5CreERT2;mTmG;SMAD4FloxFlox', 'Cdh5CreERT2 mTmG']
